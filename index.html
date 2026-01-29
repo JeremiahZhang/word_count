@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>字数统计与阅读时长分析器</title>
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-main: #1f2937;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.5;
+            padding: 2rem 1rem;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+        }
+
+        /* Dashboard Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            transition: transform 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* Main Content Area */
+        .main-content {
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .toolbar {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            background-color: #f9fafb;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        button, .file-upload-label {
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid var(--border-color);
+            background: white;
+            color: var(--text-main);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        button:hover, .file-upload-label:hover {
+            background-color: #f3f4f6;
+            border-color: #d1d5db;
+        }
+
+        button.primary {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: transparent;
+        }
+
+        button.primary:hover {
+            background-color: var(--primary-hover);
+        }
+
+        button.danger {
+            color: #dc2626;
+            border-color: #fee2e2;
+            background-color: #fef2f2;
+        }
+
+        button.danger:hover {
+            background-color: #fee2e2;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        /* Text Area */
+        .editor-wrapper {
+            position: relative;
+            flex-grow: 1;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 400px;
+            padding: 1.5rem;
+            border: none;
+            outline: none;
+            resize: vertical;
+            font-size: 1rem;
+            line-height: 1.8;
+            color: var(--text-main);
+            font-family: inherit;
+        }
+
+        textarea::placeholder {
+            color: #9ca3af;
+        }
+
+        /* Time Display */
+        .time-display {
+            grid-column: span 2; /* Make time card wider on desktop if possible */
+            background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+            color: white;
+        }
+        
+        .time-display .stat-value, .time-display .stat-label {
+            color: white;
+        }
+
+        @media (max-width: 640px) {
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .time-display {
+                grid-column: span 2;
+            }
+            .toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .btn-group {
+                justify-content: space-between;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>📄 字数统计与阅读时长</h1>
+        <p class="subtitle">支持中文、英文、标点统计及文件导入</p>
+    </header>
+
+    <!-- Stats Dashboard -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value" id="totalCount">0</div>
+            <div class="stat-label">总字数 (中+英)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="cnCount">0</div>
+            <div class="stat-label">中文字符</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="enCount">0</div>
+            <div class="stat-label">英文单词</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="punctCount">0</div>
+            <div class="stat-label">标点符号</div>
+        </div>
+        <div class="stat-card time-display">
+            <div class="stat-value" id="readTime">0 分 0 秒</div>
+            <div class="stat-label">预计阅读时间</div>
+        </div>
+    </div>
+
+    <!-- Main Editor -->
+    <div class="main-content">
+        <div class="toolbar">
+            <div class="btn-group">
+                <label for="fileInput" class="file-upload-label">
+                    📂 上传文件 (.txt/.md)
+                </label>
+                <input type="file" id="fileInput" accept=".txt,.md,.markdown">
+            </div>
+            <div class="btn-group">
+                <button onclick="copyText()">📋 复制文本</button>
+                <button class="danger" onclick="clearText()">🗑️ 清空</button>
+            </div>
+        </div>
+        <div class="editor-wrapper">
+            <textarea id="textInput" placeholder="在这里输入、粘贴文本，或者点击上方按钮上传文件..."></textarea>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Elements
+    const textInput = document.getElementById('textInput');
+    const fileInput = document.getElementById('fileInput');
+    
+    // Stats Elements
+    const totalEl = document.getElementById('totalCount');
+    const cnEl = document.getElementById('cnCount');
+    const enEl = document.getElementById('enCount');
+    const punctEl = document.getElementById('punctCount');
+    const timeEl = document.getElementById('readTime');
+
+    // Constants for Reading Speed
+    const SPEED_CN = 400; // Average Chinese chars per minute
+    const SPEED_EN = 200; // Average English words per minute
+
+    // Main Analysis Function
+    function analyzeText() {
+        const text = textInput.value;
+        
+        // 1. Chinese Characters (Basic CJK Unified Ideographs)
+        // \u4e00-\u9fa5 covers most common Chinese chars
+        const cnMatches = text.match(/[\u4e00-\u9fa5]/g);
+        const cnCount = cnMatches ? cnMatches.length : 0;
+
+        // 2. English Words (and Numbers)
+        // Look for sequences of alphanumeric characters
+        // We replace non-alphanumeric chars with spaces to split safely
+        const enText = text.replace(/[\u4e00-\u9fa5]/g, ' ') // Remove Chinese
+                           .replace(/[^\w\s-]/g, ' ');       // Remove punctuation except hyphen
+        const enMatches = enText.trim().split(/\s+/).filter(word => word.length > 0);
+        const enCount = enMatches.length;
+
+        // 3. Punctuation
+        // Unicode property escapes \p{P} catches all punctuation (requires modern browser)
+        // Fallback or addition: Specific common ranges
+        const punctMatches = text.match(/[\p{P}\p{S}]/gu);
+        const punctCount = punctMatches ? punctMatches.length : 0;
+
+        // 4. Total "Word Count"
+        // Usually defined as Chinese Chars + English Words (ignoring spaces/punctuation)
+        const totalCount = cnCount + enCount;
+
+        // 5. Reading Time Calculation
+        // Formula: (CN / SpeedCN) + (EN / SpeedEN)
+        const minutes = (cnCount / SPEED_CN) + (enCount / SPEED_EN);
+        const totalSeconds = Math.ceil(minutes * 60);
+        
+        let timeString = "";
+        if (totalSeconds < 60) {
+            timeString = `${totalSeconds} 秒`;
+            if(totalCount === 0) timeString = "0 秒";
+        } else {
+            const m = Math.floor(totalSeconds / 60);
+            const s = totalSeconds % 60;
+            timeString = `${m} 分 ${s} 秒`;
+        }
+
+        // Update DOM with animation effect for numbers
+        updateStat(totalEl, totalCount);
+        updateStat(cnEl, cnCount);
+        updateStat(enEl, enCount);
+        updateStat(punctEl, punctCount);
+        timeEl.textContent = timeString;
+    }
+
+    function updateStat(element, newValue) {
+        element.textContent = new Intl.NumberFormat().format(newValue);
+    }
+
+    // Event Listeners
+    textInput.addEventListener('input', analyzeText);
+
+    // File Upload Handler
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            textInput.value = e.target.result;
+            analyzeText();
+            // Reset file input so same file can be selected again if needed
+            fileInput.value = ''; 
+        };
+        reader.onerror = () => {
+            alert('读取文件出错，请重试。');
+        };
+        reader.readAsText(file);
+    });
+
+    // Utility Functions
+    function clearText() {
+        if(confirm("确定要清空所有内容吗？")) {
+            textInput.value = '';
+            analyzeText();
+            textInput.focus();
+        }
+    }
+
+    function copyText() {
+        textInput.select();
+        document.execCommand('copy');
+        // Deselect
+        window.getSelection().removeAllRanges();
+        
+        // Simple visual feedback (changing button text briefly)
+        const btn = document.querySelector('button[onclick="copyText()"]');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = "✅ 已复制";
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+        }, 1500);
+    }
+
+    // Initialize on load (in case of browser caching input)
+    analyzeText();
+
+</script>
+</body>
+</html>
